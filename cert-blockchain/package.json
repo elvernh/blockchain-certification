@@ -4,7 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy": "hardhat ignition deploy",
+    "node": "hardhat node",
+    "clean": "hardhat clean"
   },
   "keywords": [],
   "author": "",
