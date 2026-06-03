@@ -1,51 +1,48 @@
 import { useState, useCallback } from 'react';
 import { getWalletClient } from '../contracts/config';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
+export function getAuthToken() {
+  return localStorage.getItem('cert_token');
+}
 
 export function useWallet() {
-  const [account, setAccount]       = useState(null);
-  const [user, setUser]             = useState(null);
-  const [token, setToken]           = useState(() => localStorage.getItem('auth_token'));
+  const [account, setAccount] = useState(() => {
+    const token = getAuthToken();
+    if (!token) return null;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.exp * 1000 > Date.now()) return payload.address;
+    } catch {}
+    return null;
+  });
   const [isConnecting, setIsConnecting] = useState(false);
-  const [error, setError]           = useState(null);
+  const [error, setError] = useState(null);
 
   const connect = useCallback(async () => {
     setIsConnecting(true);
     setError(null);
     try {
-      // 1. Connect Rabby and get address
       const walletClient = await getWalletClient();
       const [address] = await walletClient.requestAddresses();
-      setAccount(address);
 
-      // 2. Fetch nonce from backend
-      const nonceRes = await fetch(`${API}/auth/nonce`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address }),
-      });
-      if (!nonceRes.ok) throw new Error('Failed to get auth nonce from server');
+      const nonceRes = await fetch(`${API}/auth/nonce/${address}`);
+      if (!nonceRes.ok) throw new Error('Failed to get auth nonce');
       const { message } = await nonceRes.json();
 
-      // 3. Sign the message with Rabby
       const signature = await walletClient.signMessage({ account: address, message });
 
-      // 4. Verify signature on backend → receive JWT
-      const verifyRes = await fetch(`${API}/auth/verify`, {
+      const authRes = await fetch(`${API}/auth/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address, signature }),
       });
-      if (!verifyRes.ok) {
-        const { error: err } = await verifyRes.json();
-        throw new Error(err || 'Backend authentication failed');
-      }
-      const { token: jwt, user: authUser } = await verifyRes.json();
+      if (!authRes.ok) throw new Error('Backend authentication failed');
+      const { token } = await authRes.json();
 
-      localStorage.setItem('auth_token', jwt);
-      setToken(jwt);
-      setUser(authUser);
+      localStorage.setItem('cert_token', token);
+      setAccount(address);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -54,11 +51,9 @@ export function useWallet() {
   }, []);
 
   const disconnect = useCallback(() => {
+    localStorage.removeItem('cert_token');
     setAccount(null);
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('auth_token');
   }, []);
 
-  return { account, user, token, connect, disconnect, isConnecting, error };
+  return { account, connect, disconnect, isConnecting, error };
 }

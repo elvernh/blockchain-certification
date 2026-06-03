@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { revokeCertificate } from '../hooks/useContract';
+import { revokeCertificate, toBytes32 } from '../hooks/useContract';
+import { getAuthToken } from '../hooks/useWallet';
+
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 export default function RevokeCertForm() {
   const [certIdStr, setCertIdStr] = useState('');
@@ -12,7 +15,20 @@ export default function RevokeCertForm() {
     setLoading(true);
     setStatus(null);
     try {
+      // 1. Revoke on-chain
       const receipt = await revokeCertificate({ certIdStr, reason });
+
+      // 2. Mirror revoke in backend DB
+      const token = getAuthToken();
+      await fetch(`${API}/certificates/${toBytes32(certIdStr)}/revoke`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason }),
+      });
+
       setStatus({ ok: true, msg: 'Certificate revoked successfully.', tx: receipt.transactionHash });
       setCertIdStr('');
       setReason('');
@@ -56,7 +72,6 @@ export default function RevokeCertForm() {
             />
           </div>
 
-          {/* Warning banner */}
           <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
             <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
