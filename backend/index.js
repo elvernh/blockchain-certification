@@ -6,6 +6,7 @@ const path = require('path');
 const authRoutes  = require('./routes/auth');
 const certRoutes  = require('./routes/certificates');
 const uploadRoutes = require('./routes/upload');
+const appRoutes   = require('./routes/applications');
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/certificates', certRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/applications', appRoutes);
 
 app.get('/health', (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
