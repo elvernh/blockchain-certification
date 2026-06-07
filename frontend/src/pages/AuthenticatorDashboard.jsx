@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getAuthToken } from '../hooks/useWallet';
 import { issueCertificate } from '../hooks/useContract';
+import CertDetailModal from '../components/CertDetailModal';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -23,6 +24,7 @@ export default function AuthenticatorDashboard() {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
   const [processing, setProcessing] = useState(false);
+  const [detailApp, setDetailApp]   = useState(null);
 
   // Approve modal state
   const [approveTarget, setApproveTarget] = useState(null);
@@ -155,7 +157,7 @@ export default function AuthenticatorDashboard() {
               const s = STATUS[app.status] ?? STATUS.PENDING;
               return (
                 <div key={app.id} className="bg-white border border-slate-200 rounded-xl px-5 py-3.5 flex items-center justify-between gap-4">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-800">{app.name}</p>
                     <p className="text-xs text-slate-400">
                       {shorten(app.applicant_address)}
@@ -163,16 +165,26 @@ export default function AuthenticatorDashboard() {
                       {app.reviewed_at ? ` · ${new Date(app.reviewed_at).toLocaleDateString()}` : ''}
                     </p>
                   </div>
-                  <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${s.bg} ${s.text}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-                    {s.label}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => setDetailApp(app)}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                    >
+                      View Details
+                    </button>
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${s.bg} ${s.text}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                      {s.label}
+                    </span>
+                  </div>
                 </div>
               );
             })}
           </div>
         </Section>
       )}
+
+      <CertDetailModal app={detailApp} onClose={() => setDetailApp(null)} />
 
       {/* Approve modal */}
       {approveTarget && (

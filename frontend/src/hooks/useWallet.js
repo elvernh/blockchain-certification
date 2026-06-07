@@ -28,6 +28,7 @@ export function useWallet() {
       const walletClient = await getWalletClient();
       const [address] = await walletClient.requestAddresses();
 
+
       // 1. Get challenge nonce from backend
       const nonceRes = await fetch(`${API}/auth/nonce/${address}`);
       if (!nonceRes.ok) throw new Error('Failed to get auth nonce');

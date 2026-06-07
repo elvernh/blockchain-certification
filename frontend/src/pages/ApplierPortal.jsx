@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getAuthToken } from '../hooks/useWallet';
+import CertDetailModal from '../components/CertDetailModal';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
@@ -17,6 +18,7 @@ export default function ApplierPortal({ account }) {
   const [uploading, setUploading]   = useState(false);
   const [error, setError]           = useState(null);
   const [success, setSuccess]       = useState(null);
+  const [detailApp, setDetailApp]   = useState(null);
 
   const [form, setForm] = useState({
     name: '', institution: '', course_name: '', description: '', file_url: '',
@@ -203,9 +205,17 @@ export default function ApplierPortal({ account }) {
                     )}
 
                     {app.status === 'APPROVED' && app.cert_id && (
-                      <div className="mt-3 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3 text-sm text-emerald-700">
-                        <span className="font-medium">Certificate ID: </span>
-                        <span className="font-mono">{app.cert_id}</span>
+                      <div className="mt-3 flex items-center justify-between bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                        <div className="text-sm text-emerald-700 min-w-0 mr-3">
+                          <span className="font-medium">Certificate ID: </span>
+                          <span className="font-mono truncate">{app.cert_id}</span>
+                        </div>
+                        <button
+                          onClick={() => setDetailApp(app)}
+                          className="shrink-0 text-xs font-medium text-emerald-700 hover:text-emerald-900 bg-white border border-emerald-200 hover:border-emerald-400 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          View Details
+                        </button>
                       </div>
                     )}
 
@@ -220,6 +230,8 @@ export default function ApplierPortal({ account }) {
           )}
         </div>
       )}
+
+      <CertDetailModal app={detailApp} onClose={() => setDetailApp(null)} />
     </div>
   );
 }
