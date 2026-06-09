@@ -25,8 +25,21 @@ export const getRabbyProvider = () => {
 
 export const getWalletClient = async () => {
   const provider = getRabbyProvider();
-  return createWalletClient({
+  const client = createWalletClient({
     chain: CHAIN,
     transport: custom(provider),
   });
+
+  // Ensure wallet is on the correct chain before every transaction
+  try {
+    await client.switchChain({ id: CHAIN.id });
+  } catch (err) {
+    if (err.code === 4902 || err.message?.includes('Unrecognized chain')) {
+      await client.addChain({ chain: CHAIN });
+      await client.switchChain({ id: CHAIN.id });
+    }
+    // If switch fails for other reasons (user rejected), let it bubble up
+  }
+
+  return client;
 };

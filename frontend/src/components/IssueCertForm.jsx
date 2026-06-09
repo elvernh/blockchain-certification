@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { issueCertificate } from '../hooks/useContract';
+import { issueCertificate, toBytes32 } from '../hooks/useContract';
+import { getAuthToken } from '../hooks/useWallet';
 
-const EMPTY = { certIdStr: '', holderAddress: '', name: '', expiryDate: '', metadataHash: '' };
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const EMPTY = { certIdStr: '', holderAddress: '', name: '', institution: '', courseName: '', expiryDate: '', metadataHash: '' };
 
 export default function IssueCertForm() {
   const [form, setForm]     = useState(EMPTY);
+  const [file, setFile]     = useState(null);
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -15,9 +18,53 @@ export default function IssueCertForm() {
     setLoading(true);
     setStatus(null);
     try {
-      const receipt = await issueCertificate(form);
-      setStatus({ ok: true, msg: `Certificate issued successfully.`, tx: receipt.transactionHash });
+      const token = getAuthToken();
+
+      // 1. Upload file if provided
+      let fileUrl = null;
+      if (file) {
+        const fd = new FormData();
+        fd.append('file', file);
+        const uploadRes = await fetch(`${API}/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        });
+        if (!uploadRes.ok) throw new Error('File upload failed');
+        ({ url: fileUrl } = await uploadRes.json());
+      }
+
+      // 2. Issue on-chain
+      const receipt = await issueCertificate({
+        certIdStr: form.certIdStr,
+        holderAddress: form.holderAddress,
+        name: form.name,
+        expiryDate: form.expiryDate,
+        metadataHash: form.metadataHash || form.certIdStr,
+      });
+
+      // 3. Save metadata to backend
+      await fetch(`${API}/certificates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          cert_id: toBytes32(form.certIdStr),
+          holder_address: form.holderAddress,
+          name: form.name,
+          institution: form.institution,
+          course_name: form.courseName,
+          expires_at: form.expiryDate ? new Date(form.expiryDate).toISOString() : null,
+          tx_hash: receipt.transactionHash,
+          file_url: fileUrl,
+        }),
+      });
+
+      setStatus({ ok: true, msg: 'Certificate issued and saved.', tx: receipt.transactionHash });
       setForm(EMPTY);
+      setFile(null);
     } catch (err) {
       setStatus({ ok: false, msg: err.message });
     } finally {
@@ -35,12 +82,25 @@ export default function IssueCertForm() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Certificate ID"   name="certIdStr"      value={form.certIdStr}      onChange={handleChange} placeholder="CERT-2024-001" />
-            <Field label="Certificate Name" name="name"           value={form.name}           onChange={handleChange} placeholder="Bachelor of Science" />
-            <Field label="Holder Address"   name="holderAddress"  value={form.holderAddress}  onChange={handleChange} placeholder="0x…" mono />
-            <Field label="Expiry Date"      name="expiryDate"     value={form.expiryDate}     onChange={handleChange} type="date" />
+            <Field label="Certificate ID"   name="certIdStr"     value={form.certIdStr}     onChange={handleChange} placeholder="CERT-2024-001" />
+            <Field label="Certificate Name" name="name"          value={form.name}          onChange={handleChange} placeholder="Bachelor of Science" />
+            <Field label="Holder Address"   name="holderAddress" value={form.holderAddress} onChange={handleChange} placeholder="0x…" mono />
+            <Field label="Expiry Date"      name="expiryDate"    value={form.expiryDate}    onChange={handleChange} type="date" />
+            <Field label="Institution"      name="institution"   value={form.institution}   onChange={handleChange} placeholder="Universitas Ciputra" />
+            <Field label="Course / Program" name="courseName"    value={form.courseName}    onChange={handleChange} placeholder="Computer Science" />
           </div>
-          <Field label="Metadata Hash" name="metadataHash" value={form.metadataHash} onChange={handleChange} placeholder="ipfs://… or any identifier" mono />
+          <Field label="Metadata Hash" name="metadataHash" value={form.metadataHash} onChange={handleChange} placeholder="ipfs://… or any identifier (optional)" mono />
+
+          {/* File upload */}
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1.5 uppercase tracking-wide">Certificate Document (optional)</label>
+            <input
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg"
+              onChange={(e) => setFile(e.target.files[0] || null)}
+              className="w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:text-xs file:font-medium hover:file:bg-slate-200"
+            />
+          </div>
 
           <button
             type="submit"
@@ -92,7 +152,7 @@ function Field({ label, name, type = 'text', value, onChange, placeholder, mono 
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        required
+        required={name !== 'metadataHash' && name !== 'institution' && name !== 'courseName'}
         className={`w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition ${mono ? 'font-mono' : ''}`}
       />
     </div>
